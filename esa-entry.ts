@@ -16,6 +16,8 @@
  *    此处为每次请求创建独立缓存 Map，同 key 仅发起一次真实 KV 调用。
  */
 declare const EdgeKV: any
+import "./esa-process-shim"
+
 import app, { setSpaFallbackHtml } from "./src/backend/index"
 import INDEX_HTML from "./dist/index.html"
 // 构建期内联 dist/index.html 作为 SPA 兜底壳
