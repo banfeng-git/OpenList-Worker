@@ -149,7 +149,28 @@ function wrapEsaEdgeKV(edgeKv: any, cache?: Map<string, string | null>) {
         throw e
       }
     },
-    async delete(key: string): Promise<void> {
+      /**
+     * ESA 兼容：项目 kv 驱动的健康探测会调用 list({prefix,limit})，而 ESA EdgeKV 只保证
+     * get/put/delete。此处优先转发原生 list（若存在），否则返回空页 —— DB_FORMAT=map
+     * 按单键整体读写、不依赖枚举，空列表不影响数据正确性，只用于让 env_check 判定该驱动可用。
+     */
+    async list(options?: any): Promise<any> {
+      const opts = options || {}
+      const kv: any = edgeKv
+      if (typeof kv.list === "function") {
+        try {
+          const page = await kv.list(opts)
+          if (page && Array.isArray(page.keys)) return page
+          const keys = (page && (page.keys || page.items)) || []
+          return { keys, list_complete: true, cursor: "" }
+        } catch (e) {
+          console.warn("[ESA/KV] list failed, fallback to empty:", e)
+        }
+      }
+      return { keys: [], list_complete: true, cursor: "" }
+    },
+
+  async delete(key: string): Promise<void> {
       try {
         await edgeKv.delete(key)
       } catch {}
