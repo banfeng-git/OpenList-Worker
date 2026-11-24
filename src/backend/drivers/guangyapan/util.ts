@@ -324,7 +324,12 @@ export class GuangYaPanClient {
     }
 
     let { res, json } = await doPost()
-    if ((res.status === 401 || res.status === 403) && this.refreshToken) {
+    // 业务态 token 失效（code 117「无效token」）也按 401/403 一样刷新一次重试
+    const needsRefresh =
+      res.status === 401 ||
+      res.status === 403 ||
+      (json as any)?.code === 117
+    if (needsRefresh && this.refreshToken) {
       await this.refresh()
       const retried = await doPost()
       res = retried.res
@@ -336,22 +341,40 @@ export class GuangYaPanClient {
     return json
   }
 
-  async getFileList(parentId: string, pageSize: number, orderBy: number, sortType: number): Promise<GypListResp> {
+  async getFileList(parentId: string, pageSize: number, orderBy: number, sortType: number, page = 0): Promise<GypListResp> {
     return this.postAPI<GypListResp>("/userres/v1/file/get_file_list", {
       parentId,
-      page: 0,
+      page,
       pageSize,
       orderBy,
       sortType,
     })
   }
 
-  async getDownloadURL(fileId: string): Promise<string> {
+  async getDownloadURL(fileId: string): Promise<{ url: string; error: string }> {
     const resp = await this.postAPI<any>(
       "/nd.bizuserres.s/v1/get_res_download_url",
       { fileId },
     )
-    return (resp?.data?.signedURL || resp?.data?.downloadUrl || "").trim()
+    const data = resp?.data || {}
+    const url = (
+      data.signedURL ||
+      data.downloadUrl ||
+      data.downloadURL ||
+      data.url ||
+      data.download_url ||
+      data.signed_url ||
+      ""
+    ).trim()
+    if (url) return { url, error: "" }
+
+    const code = resp?.code
+    const msg = (resp?.msg || "").trim()
+    const error =
+      code != null && code !== 0 && code !== 200
+        ? `光鸭云取链失败 code=${code}${msg ? `：${msg}` : ""}`
+        : "上游未返回下载直链"
+    return { url: "", error }
   }
 
   async getUploadToken(

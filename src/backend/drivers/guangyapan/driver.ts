@@ -211,6 +211,7 @@ export class GuangYaPanDriver implements StorageDriver {
         this.addition.page_size,
         this.addition.order_by,
         this.addition.sort_type,
+        page,
       )
       const list = resp.data?.list || []
       for (const f of list) {
@@ -251,14 +252,18 @@ export class GuangYaPanDriver implements StorageDriver {
 
     const isDir = found.resType === 2
     let rawUrl = ""
+    let rawError = ""
     if (!isDir) {
-      rawUrl = await this.client.getDownloadURL(found.fileId)
+      const dl = await this.client.getDownloadURL(found.fileId)
+      rawUrl = dl.url
+      rawError = dl.error
     }
     this.idCache.set(clean, found.fileId)
 
     return {
       ...gypFileToItem(found),
       raw_url: rawUrl,
+      ...(rawError ? { raw_url_error: rawError } : {}),
     }
   }
 
